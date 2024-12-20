@@ -122,11 +122,6 @@ has_audio_track() {
     return $?
 }
 
-detect_audio_language() {
-    local file="$1"
-    ffprobe -v error -select_streams a:0 -show_entries stream_tags=language -of default=noprint_wrappers=1:nokey=1 "$file"
-}
-
 # Recursively scan directories for video files to generate subtitles for.
 scan_directory() {
     local dir="$1"
@@ -175,8 +170,7 @@ generate_subtitles() {
     local file="$1"
 
     local audio_file="$TEMP_DIR/$(basename "${file%.*}.audio.mkv")"
-    local output_file="${file%.*}.$SUBTITLE_SUFFIX.srt" 
-    local audio_language=$(detect_audio_language "$file")
+    local output_file="${file%.*}.$SUBTITLE_SUFFIX.srt" \
 
     # Extract the first audio track from the video.
     # Only the first audio track is necessary to generate subtitles.
@@ -184,7 +178,7 @@ generate_subtitles() {
     execute_command "ffmpeg -loglevel error -i \"$file\" -map 0:a:0 -c:a copy \"$audio_file\""
 
     # Send the audio MKV file to Whisper and receive STR subtitles.
-    execute_command "curl --no-progress-meter --request POST --header \"content-type: multipart/form-data\" --form \"audio_file=@$audio_file\" \"http://${WHISPER_IP}:${WHISPER_PORT}/asr?task=translate&language=${audio_language}&output=srt\" --output \"$output_file\""
+    execute_command "curl --no-progress-meter --request POST --header \"content-type: multipart/form-data\" --form \"audio_file=@$audio_file\" \"http://${WHISPER_IP}:${WHISPER_PORT}/asr?task=translate&output=srt\" --output \"$output_file\""
 
     # Remove the temporary audio file.
     execute_command "rm \"$audio_file\""
