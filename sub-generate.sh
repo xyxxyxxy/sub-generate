@@ -212,7 +212,7 @@ cleanup_abandoned_srt() {
 }
 
 # Start scanning from the provided directory.
-echo "Scanning directory $(realpath $START_DIR)"
+echo "Scanning directory $START_DIR"
 scan_directory "$START_DIR"
 
 # Generate subtitles for all collected videos and log progress.
