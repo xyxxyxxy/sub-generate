@@ -13,6 +13,24 @@ Example of generate subtitle file, next to video file:
 
 Currently supporting English only. See: https://github.com/openai/whisper
 
+```
+Usage: sub-generate.sh [OPTIONS]
+
+Options:
+  --start-dir, -sd DIR          Directory to start recursively scanning for videos to process. (default: .)
+  --whisper-ip, -wi IP          Set the whisper-asr-webservice IP address. (default: localhost)
+  --whisper-port, -wp PORT      Set the whisper-asr-webservice port. (default: 9000)
+  --video-formats, -vf FORMATS  Comma-separated list of video formats. (default: mkv,mp4,avi)
+  --ignore-dirs, -id DIRS       Comma-separated list of directory names to ignore. (default: backdrops,trailers)
+                                Folders containing an .ignore file are also ignored.
+  --subtitle-language, -sl LANG Generated subtitle language. (default: English)
+                                Used to skip a video, if it already contains embedded subtitles in the target language.
+                                Needs to match the mediainfo language output.
+  --generated-keyword, -gk WORD Keyword added to the file name of generated subtitle files. (default: [generated])
+  --dry-run                     Run without making any changes. (default: false)
+  --help                        Display this help message and exit.
+```
+
 ## Comparison with Bazarr
 
 Bazarr also offers a [Whisper provider](https://wiki.bazarr.media/Additional-Configuration/Whisper-Provider/), using the same backend as this script.
@@ -28,13 +46,8 @@ Differences of this script:
 
 ## Requirements
 
-An instance of [whisper-asr-webservice](https://github.com/ahmetoner/whisper-asr-webservice).
-
-The following commands need to be available on the machine running this script:
-
-- `mediainfo` to check if a video file already has embeded subtitles in the target language.
-- `ffmpeg` to extract the audio before sending it to Whisper.
-  - `ffprobe` (installed with `ffmpeg`) to check if the video file has an audio track.
+1. An instance of [whisper-asr-webservice](https://github.com/ahmetoner/whisper-asr-webservice).
+2. `mediainfo` needs to be installed on the host to check if a video file already has embeded subtitles in the target language.
 
 ## Cleanup
 
@@ -48,10 +61,6 @@ Only subtitle files with the `--generated-keyword` in its file name will be remo
 Be aware that changing the `--generated-keyword` after generating subtitles will put previously generated subtitles out of scope.
 In such a case it is recommended to rename the previously generated subtitle files accordingly, replacing the old keyword with the new.
 
-## Language Detection
-
-No efforts is done to detect the language before sending the audio to Whisper.
-
 ## Limiting Runtime
 
 Subtitle generation can take time. With medium settings and hardware a movie-length video can take 10 minutes.
@@ -63,8 +72,6 @@ timeout 2h ./sub-generate.sh
 
 If the script is terminated while running, the progress of the currently transcribed file will be lost.
 All previously processed files will be fine. The next run continues where left of.
-
-Some temporary files might remain, but will be cleaned up with the next run.
 
 ## Notes
 
