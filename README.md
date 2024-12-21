@@ -13,7 +13,7 @@ Example of generate subtitle file, next to video file:
 
 Help text:
 
-```bash
+```
 Usage: sub-generate.sh [OPTIONS]
 
 Options:
