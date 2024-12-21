@@ -61,18 +61,6 @@ Only subtitle files with the `--generated-keyword` in its file name will be remo
 Be aware that changing the `--generated-keyword` after generating subtitles will put previously generated subtitles out of scope.
 In such a case it is recommended to rename the previously generated subtitle files accordingly, replacing the old keyword with the new.
 
-## Limiting Runtime
-
-Subtitle generation can take time. With medium settings and hardware a movie-length video can take 10 minutes.
-To limit the runtime duration the script can be started using `timeout`, for example to run for maximum 2 hours:
-
-```bash
-timeout 2h ./sub-generate.sh
-```
-
-If the script is terminated while running, the progress of the currently transcribed file will be lost.
-All previously processed files will be fine. The next run continues where left of.
-
 ## Notes
 
 Created with the help of AI, using [Microsoft Copilot](https://copilot.microsoft.com).
