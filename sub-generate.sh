@@ -76,6 +76,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Check/setup environment.
+echo
+mediainfo --Version
+# Make sure the shell supports special characters in file names, like '³'.
+export LANG=en_US.utf8
+echo
+
 if [[ "$SUBTITLE_LANGUAGE" != "English" ]]; then
     echo "Error: Unsupported subtitle language '$SUBTITLE_LANGUAGE'. Only 'English' is currently supported by whisper-asr-webservice."
     exit 1
