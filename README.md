@@ -11,7 +11,7 @@ Example of generate subtitle file, next to video file:
 /Video/MyVideo.English [generated].srt
 ```
 
-Currently supporting English only. See: https://github.com/openai/whisper
+Currently supporting translating to English only. See: https://github.com/openai/whisper
 
 ```
 Usage: sub-generate.sh [OPTIONS]
