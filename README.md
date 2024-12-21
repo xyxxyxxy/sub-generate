@@ -1,6 +1,6 @@
 # sub-generate
 
-A script to scan all video files in a folder recursively and generate missing subtitles, using [whisper-asr-webservice](https://github.com/ahmetoner/whisper-asr-webservice).
+A script to scan all video files in a folder recursively and generate missing subtitles in English, using [whisper-asr-webservice](https://github.com/ahmetoner/whisper-asr-webservice).
 
 The subtitles will be placed next to the video as SRT file.
 
@@ -11,9 +11,9 @@ Example of generate subtitle file, next to video file:
 /Video/MyVideo.English [generated].srt
 ```
 
-Currently supporting translating to English only. See: https://github.com/openai/whisper
+Help text:
 
-```
+```bash
 Usage: sub-generate.sh [OPTIONS]
 
 Options:
@@ -41,13 +41,13 @@ Differences of this script:
   - Enables Emby to display a [custom name](https://emby.media/support/articles/Subtitles.html) for the generated subtitle, indicating to the user it was generated.
     - This is doable in Bazarr with a custom post-processing script, but Bazarr will not find the file anymore after renaming.
 - Can handle any video file.
-  - Bazarr sees only [Sonarr](https://github.com/Sonarr/Sonarr) and [Radarr](https://github.com/Radarr/Radarr) files by design.
-  - This script can be run on any folder, including specials/extras/anything else.
+  - Bazarr sees only [Sonarr](https://github.com/Sonarr/Sonarr) and [Radarr](https://github.com/Radarr/Radarr) managed files by design.
+  - This script can be run on any folder, including specials, extras and anything else.
 
 ## Requirements
 
 1. An instance of [whisper-asr-webservice](https://github.com/ahmetoner/whisper-asr-webservice).
-2. `mediainfo` needs to be installed on the host to check if a video file already has embeded subtitles in the target language.
+2. `mediainfo` installed on the host to check for existing subtitles and audio language in video.
 
 ## Cleanup
 
