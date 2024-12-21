@@ -133,7 +133,19 @@ cleanup_abandoned_srt() {
 # Check for subtitle track using mediainfo.
 contains_subtitle_language() {
     local file="$1"
-    mediainfo "$file" | awk '/Text/,/Language/ { if ($1 == "Language" && $3 == "'"$SUBTITLE_LANGUAGE"'") found=1 } END { exit !found }'
+    local response
+
+    # Run mediainfo and capture the response
+    response=$(mediainfo "$file")
+
+    # Check if the response is empty
+    if [[ -z "$response" ]]; then
+        echo "Warn: mediainfo response was empty."
+        return 1
+    fi
+
+    # Process the mediainfo response to find the subtitle language
+    echo "$response" | awk '/Text/,/Language/ { if ($1 == "Language" && $3 == "'"$SUBTITLE_LANGUAGE"'") found=1 } END { exit !found }'
     return $?
 }
 
@@ -210,15 +222,22 @@ check_output_file() {
 
 # Returns language code for first audio track of file.
 # See: https://github.com/openai/whisper/blob/main/whisper/tokenizer.py
+# Returns 'null' if no language metadata is available.
 get_audio_language_code() {
     local file=$1
-    mediainfo --Output=JSON "$file" | jq -r '.media.track[] | select(.["@type"] == "Audio") | .Language' | head -n 1
+    mediainfo --Output=JSON "$file" | jq -r '.media.track[]? | select(.["@type"] == "Audio") | .Language?' | head -n 1
 }
 
 generate_subtitles() {
     local file="$1"
     local output_file="${file%.*}.$SUBTITLE_SUFFIX.srt"
     local language=$(get_audio_language_code "$file")
+
+    # Skip files without clear language.
+    if [ -z "$language" ] || [ "$language" == "null" ]; then
+        echo "Warn: Skipping. Failed to detect audio language of first audio track."
+        return
+    fi
 
     echo "Language: $language"
 
