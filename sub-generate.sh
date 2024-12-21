@@ -64,6 +64,10 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=true
             shift
             ;;
+        --help)
+            show_help
+            exit 0
+            ;;
         *)
             echo "Unknown option: $1"
             show_help
@@ -83,6 +87,8 @@ SUBTITLE_SUFFIX="$SUBTITLE_LANGUAGE $GENERATED_KEYWORD"
 # Initialize an empty array to hold the video file paths.
 video_files=()
 
+any_error=0
+
 # Function to handle dry run logic
 execute_command() {
     local command="$1"
@@ -90,7 +96,10 @@ execute_command() {
         echo "    DRY_RUN $command"
     else
         echo "    $command"
-        eval "$command"
+        # Run command and evaluate exit code.
+        if ! eval "$command"; then
+            any_error=1
+        fi
     fi
 }
 
@@ -171,14 +180,15 @@ scan_directory() {
         fi
     done
 }
-    
+
 # Any API error returned will be written as output in the generated subtitle file.
 # We check here for such errors to catch them and remove the generated file.
 check_output_file() {
     # Check for "Internal Server Error" response.
     if [[ $(<"$output_file") == "Internal Server Error" ]]; then
         echo "Error: whisper-asr-webservice returned 'Internal Server Error'. Check server logs for more info."
-        rm "$output_file"
+        execute_command "rm \"$output_file\""
+        any_error=1
         return
     fi
 
@@ -187,7 +197,8 @@ check_output_file() {
     if head -n 1 "$output_file" | grep -q '^{'; then
         echo "Error: whisper-asr-webservice returned:"
         cat "$output_file"
-        rm "$output_file"
+        execute_command "rm \"$output_file\""
+        any_error=1
         return
     fi
 
@@ -210,12 +221,18 @@ generate_subtitles() {
     local output_file="${file%.*}.$SUBTITLE_SUFFIX.srt"
     local language=$(get_audio_language_code "$file")
 
+    echo "Language: $language"
+
     # Send the audio MKV file to Whisper and receive STR subtitles.
     execute_command "curl --no-progress-meter --request POST --header \"content-type: multipart/form-data\" --form \"audio_file=@$file\" \"http://${WHISPER_IP}:${WHISPER_PORT}/asr?task=translate&language=${language}&output=srt\" --output \"$output_file\""
 
-    # Skip checks on a dry run, since no file was created.
-    if ! $DRY_RUN; then
+    # Check file, if it was created successfully.
+    if [[ -f "$output_file" ]]; then
         check_output_file "$output_file"
+    else
+        # Making sure the file is generated.
+        echo "Error: Failed to generate subtitle."
+        any_error=1
     fi
 }
 
@@ -229,4 +246,10 @@ for i in "${!video_files[@]}"; do
     generate_subtitles "${video_files[$i]}"
 done
 
-echo "Done"
+if [ $any_error -eq 0 ]; then
+    echo "Done."
+    exit 0
+else
+    echo "Completed with errors. See above."
+    exit 1
+fi
