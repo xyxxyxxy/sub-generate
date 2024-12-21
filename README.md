@@ -49,6 +49,8 @@ Differences of this script:
 1. An instance of [whisper-asr-webservice](https://github.com/ahmetoner/whisper-asr-webservice).
 2. `mediainfo` installed on the host to check for existing subtitles and audio language in video.
 
+The first audio track of the video is used. It is important that this track has the correct metadata, as it is passed to Whisper.
+
 ## Cleanup
 
 The script contains logic to clean up any abandoned generated subtitle file.
