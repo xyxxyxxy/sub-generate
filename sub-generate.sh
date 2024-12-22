@@ -226,9 +226,8 @@ scan_directory() {
                         if ! contains_subtitle_language "$item"; then
                             # Check if video contains an audio track in the target language if option is enabled
                             if [[ "$CHECK_AUDIO" = false ]] || ! contains_audio_language "$item"; then
-                            # if [[ "$CHECK_AUDIO" = false || ! contains_audio_language "$item" ]]; then TODO REMOVE
-                            echo "Schedule subtitle generation for $item"
-                            video_files+=("$item")
+                                echo "Schedule subtitle generation for $item"
+                                video_files+=("$item")
                             fi
                         fi
                     fi
