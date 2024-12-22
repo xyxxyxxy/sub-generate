@@ -7,6 +7,7 @@ WHISPER_PORT="9000"
 VIDEO_FORMATS=("mkv" "mp4" "avi")
 IGNORE_DIRS=("backdrops" "trailers")
 SUBTITLE_LANGUAGE="English"
+CHECK_AUDIO=false
 GENERATED_KEYWORD="[generated]"
 DRY_RUN=false
 
@@ -20,9 +21,10 @@ show_help() {
     echo "  --video-formats, -vf FORMATS  Comma-separated list of video formats. (default: mkv,mp4,avi)"
     echo "  --ignore-dirs, -id DIRS       Comma-separated list of directory names to ignore. (default: backdrops,trailers)"
     echo "                                Folders containing an .ignore file are also ignored."
-    echo "  --subtitle-language, -sl LANG Generated subtitle language. (default: $SUBTITLE_LANGUAGE)"
-    echo "                                Used to skip a video, if it already contains embedded subtitles in the target language."
+    echo "  --subtitle-language, -sl LANG Target language for generated subtitles. (default: $SUBTITLE_LANGUAGE)"
+    echo "                                Used to skip a video, if it already contains embedded subtitles in that language."
     echo "                                Needs to match the mediainfo language output."
+    echo "  --check-audio, -ca            Skip video if it contains an audio track in the target subtitle language. (default: $CHECK_AUDIO)"
     echo "  --generated-keyword, -gk WORD Keyword added to the file name of generated subtitle files. (default: $GENERATED_KEYWORD)"
     echo "  --dry-run                     Run without making any changes. (default: $DRY_RUN)"
     echo "  --help                        Display this help message and exit."
@@ -56,6 +58,10 @@ while [[ $# -gt 0 ]]; do
             SUBTITLE_LANGUAGE="$2"
             shift 2
             ;;
+        --check-audio|-ca)
+            CHECK_AUDIO=true
+            shift
+            ;;
         --generated-keyword|-gk)
             GENERATED_KEYWORD="$2"
             shift 2
@@ -79,7 +85,9 @@ done
 # Check/setup environment.
 echo
 mediainfo --Version
-# Make sure the shell supports special characters in file names, like '³'.
+# Make sure the shell supports special characters in file names.
+# Without the LANG set, the mediainfo response can be
+# empty if the file name contains for example '³'.
 export LANG=en_US.utf8
 echo
 
@@ -137,15 +145,15 @@ cleanup_abandoned_srt() {
     done
 }
 
-# Check for subtitle track using mediainfo.
+# Check if video already contains subtitle track in wanted language using mediainfo.
 contains_subtitle_language() {
     local file="$1"
     local response
 
-    # Run mediainfo and capture the response
+    # Run mediainfo and capture the response.
     response=$(mediainfo "$file")
 
-    # Check if the response is empty
+    # Check if the response is empty.
     if [[ -z "$response" ]]; then
         echo "Warn: mediainfo response was empty."
         return 1
@@ -156,11 +164,37 @@ contains_subtitle_language() {
     return $?
 }
 
+# Returns language codes for all audio tracks of a file.
+# See: https://github.com/openai/whisper/blob/main/whisper/tokenizer.py
+# Returns an array of language codes.
+get_audio_language_codes() {
+    local file=$1
+    mediainfo --Output=JSON "$file" | jq -r '.media.track[]? | select(.["@type"] == "Audio") | .Language?'
+}
+
+# Check if the video contains the targeted subtitle language in its audio tracks.
+contains_audio_language() {
+    local file="$1"
+    local audio_languages
+
+    # Get the language codes of the audio tracks
+    audio_languages=$(get_audio_language_codes "$file")
+
+    # Check if any of the language codes match the targeted subtitle language
+    for lang in $audio_languages; do
+        if [[ "$lang" == "$SUBTITLE_LANGUAGE" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
 # Recursively scan directories for video files to generate subtitles for.
 scan_directory() {
     local dir="$1"
 
-    # Check for .ignore file and skip the file exists.
+    # Check for .ignore file and skip if the file exists.
     # This is an Emby convention: https://emby.media/support/articles/Excluding-Files-Folders.html
     if [[ -f "$dir/.ignore" ]]; then
         return
@@ -190,8 +224,12 @@ scan_directory() {
                     if [[ ! -f "$subtitle_file" ]]; then
                         # Check if video already has subtitles in the target language embedded.
                         if ! contains_subtitle_language "$item"; then
+                            # Check if video contains an audio track in the target language if option is enabled
+                            if [[ "$CHECK_AUDIO" = false ]] || ! contains_audio_language "$item"; then
+                            # if [[ "$CHECK_AUDIO" = false || ! contains_audio_language "$item" ]]; then TODO REMOVE
                             echo "Schedule subtitle generation for $item"
                             video_files+=("$item")
+                            fi
                         fi
                     fi
                 fi
