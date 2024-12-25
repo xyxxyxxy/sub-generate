@@ -6,7 +6,7 @@ WHISPER_IP="localhost"
 WHISPER_PORT="9000"
 VIDEO_FORMATS=("mkv" "mp4" "avi")
 IGNORE_DIRS=("backdrops" "trailers")
-SUBTITLE_LANGUAGE="English"
+SUBTITLE_LANGUAGE="en"
 CHECK_AUDIO=false
 GENERATED_KEYWORD="[generated]"
 DRY_RUN=false
@@ -22,7 +22,7 @@ show_help() {
     echo "  --ignore-dirs, -id DIRS       Comma-separated list of directory names to ignore. (default: backdrops,trailers)"
     echo "                                Folders containing an .ignore file are also ignored."
     echo "  --subtitle-language, -sl LANG Target language for generated subtitles. (default: $SUBTITLE_LANGUAGE)"
-    echo "                                Used to skip a video, if it already contains embedded subtitles in that language."
+    echo "                                Used to skip a video, if it already has embedded subtitles in that language."
     echo "                                Needs to match the mediainfo language output."
     echo "  --check-audio, -ca            Skip video if it contains an audio track in the target subtitle language. (default: $CHECK_AUDIO)"
     echo "  --generated-keyword, -gk WORD Keyword added to the file name of generated subtitle files. (default: $GENERATED_KEYWORD)"
@@ -91,8 +91,8 @@ mediainfo --Version
 export LANG=en_US.utf8
 echo
 
-if [[ "$SUBTITLE_LANGUAGE" != "English" ]]; then
-    echo "Error: Unsupported subtitle language '$SUBTITLE_LANGUAGE'. Only 'English' is currently supported by whisper-asr-webservice."
+if [[ "$SUBTITLE_LANGUAGE" != "en" ]]; then
+    echo "Error: Unsupported subtitle language '$SUBTITLE_LANGUAGE'. Only English 'en' is currently supported by whisper-asr-webservice."
     exit 1
 fi
 
@@ -145,23 +145,25 @@ cleanup_abandoned_srt() {
     done
 }
 
-# Check if video already contains subtitle track in wanted language using mediainfo.
+# Check if video already contains any subtitle track in target language.
 contains_subtitle_language() {
     local file="$1"
-    local response
-
-    # Run mediainfo and capture the response.
-    response=$(mediainfo "$file")
-
-    # Check if the response is empty.
-    if [[ -z "$response" ]]; then
-        echo "Warn: mediainfo response was empty."
+    
+    output=$(mediainfo --Output=JSON "$file")
+    
+    # Check for errors in mediainfo output
+    if [ $? -ne 0 ]; then
+        echo "Error running mediainfo on $file"
         return 1
     fi
-
-    # Process the mediainfo response to find the subtitle language
-    echo "$response" | awk '/Text/,/Language/ { if ($1 == "Language" && $3 == "'"$SUBTITLE_LANGUAGE"'") found=1 } END { exit !found }'
-    return $?
+    
+    result=$(echo "$output" | jq -e '.media.track[]? | select(.["@type"] == "Text" and .Language == "'"$SUBTITLE_LANGUAGE"'")')
+    
+    # Check for errors in jq processing
+    if [ $? -ne 0 ]; then
+        echo "Error processing JSON output from mediainfo"
+        return 1
+    fi
 }
 
 # Returns language codes for all audio tracks of a file.
@@ -219,18 +221,26 @@ scan_directory() {
             # Check if the item is a video file in the VIDEO_FORMATS array.
             for format in "${VIDEO_FORMATS[@]}"; do
                 if [[ "$item" == *.$format ]]; then
-                    # Check generated subtitle is already present for this video.
+                    echo "Checking video $item"
+
                     local subtitle_file="${item%.*}.$SUBTITLE_SUFFIX.srt"
-                    if [[ ! -f "$subtitle_file" ]]; then
-                        # Check if video already has subtitles in the target language embedded.
-                        if ! contains_subtitle_language "$item"; then
-                            # Check if video contains an audio track in the target language if option is enabled
-                            if [[ "$CHECK_AUDIO" = false ]] || ! contains_audio_language "$item"; then
-                                echo "Schedule subtitle generation for $item"
-                                video_files+=("$item")
-                            fi
-                        fi
+                    if [[ -f "$subtitle_file" ]]; then
+                        echo "Skip. Generated subtitles in target language present."
+                        continue
                     fi
+
+                    if contains_subtitle_language "$item"; then
+                        echo "Skip. Video has embedded subtitles in target language."
+                        continue
+                    fi
+
+                    if [[ "$CHECK_AUDIO" = true ]] || contains_audio_language "$item"; then
+                        echo "Skip. --check-audio is enable and video already has embedded audio track in the target language."
+                        continue
+                    fi
+
+                    echo "Schedule subtitle generation for $item"
+                    video_files+=("$item")
                 fi
             done
         fi
