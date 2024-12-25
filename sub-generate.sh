@@ -25,6 +25,7 @@ show_help() {
     echo "                                Used to skip a video, if it already has embedded subtitles in that language."
     echo "                                Needs to match the mediainfo language output."
     echo "  --check-audio, -ca            Skip video if it contains an audio track in the target subtitle language. (default: $CHECK_AUDIO)"
+    echo "  --days DAYS                   Consider only files and directories that changes in the last x days. (default: no filter)"
     echo "  --generated-keyword, -gk WORD Keyword added to the file name of generated subtitle files. (default: $GENERATED_KEYWORD)"
     echo "  --dry-run                     Run without making any changes. (default: $DRY_RUN)"
     echo "  --help                        Display this help message and exit."
@@ -61,6 +62,10 @@ while [[ $# -gt 0 ]]; do
         --check-audio|-ca)
             CHECK_AUDIO=true
             shift
+            ;;
+        --days)
+            DAYS="$2"
+            shift 2
             ;;
         --generated-keyword|-gk)
             GENERATED_KEYWORD="$2"
@@ -161,7 +166,6 @@ contains_subtitle_language() {
     
     # Check for errors in jq processing
     if [ $? -ne 0 ]; then
-        echo "Error processing JSON output from mediainfo"
         return 1
     fi
 }
@@ -169,7 +173,7 @@ contains_subtitle_language() {
 # Returns language codes for all audio tracks of a file.
 # See: https://github.com/openai/whisper/blob/main/whisper/tokenizer.py
 # Returns an array of language codes.
-get_audio_language_codes() {
+get_audio_languages() {
     local file=$1
     mediainfo --Output=JSON "$file" | jq -r '.media.track[]? | select(.["@type"] == "Audio") | .Language?'
 }
@@ -180,8 +184,8 @@ contains_audio_language() {
     local audio_languages
 
     # Get the language codes of the audio tracks
-    audio_languages=$(get_audio_language_codes "$file")
-
+    audio_languages=$(get_audio_languages "$file")
+    
     # Check if any of the language codes match the targeted subtitle language
     for lang in $audio_languages; do
         if [[ "$lang" == "$SUBTITLE_LANGUAGE" ]]; then
@@ -196,17 +200,21 @@ contains_audio_language() {
 scan_directory() {
     local dir="$1"
 
+    echo "Scanning directory $dir"
+
     # Check for .ignore file and skip if the file exists.
     # This is an Emby convention: https://emby.media/support/articles/Excluding-Files-Folders.html
     if [[ -f "$dir/.ignore" ]]; then
+        echo "Skip. '.ignore' file present."
         return
     fi
 
     # Cleanup abandoned SRTs in every directory.
     cleanup_abandoned_srt "$dir"
 
-    # Iterate over the items in the directory.
-    for item in "$dir"/*; do
+    # Iterate over the items in the directory. Keeping the optional --days argument in mind.
+    IFS=$'\0' read -d '' -r -a items < <(find "$dir"/* -maxdepth 0 ${DAYS:+-mtime -$DAYS} -print0)
+    for item in "${items[@]}"; do
         if [[ -d "$item" ]]; then
             # Exclude directories in the IGNORE_DIRS array.
             local dirname
@@ -223,24 +231,34 @@ scan_directory() {
                 if [[ "$item" == *.$format ]]; then
                     echo "Checking video $item"
 
+                    # Check if subtitles were already generated for this video.
                     local subtitle_file="${item%.*}.$SUBTITLE_SUFFIX.srt"
                     if [[ -f "$subtitle_file" ]]; then
-                        echo "Skip. Generated subtitles in target language present."
+                        echo "Skip. Generated subtitles in '$SUBTITLE_LANGUAGE' present."
                         continue
                     fi
 
+                    # Check embedded subtitles.
                     if contains_subtitle_language "$item"; then
-                        echo "Skip. Video has embedded subtitles in target language."
+                        echo "Skip. Video has embedded subtitles in '$SUBTITLE_LANGUAGE'."
                         continue
                     fi
 
-                    if [[ "$CHECK_AUDIO" = true ]] || contains_audio_language "$item"; then
-                        echo "Skip. --check-audio is enable and video already has embedded audio track in the target language."
+                    # Enforce --check-audio flag.
+                    if [[ "$CHECK_AUDIO" = true ]] && contains_audio_language "$item"; then
+                        echo "Skip. --check-audio is enable and video already has embedded audio track in '$SUBTITLE_LANGUAGE'."
                         continue
                     fi
 
-                    echo "Schedule subtitle generation for $item"
+                    # Skip files without clear language, as the input language needs to be set to interact with Whisper.
+                    local language=$(get_audio_language_code "$item")
+                    if [ -z "$language" ] || [ $language == "null" ]; then
+                        echo "Skip. Failed to detect audio language of first audio track."
+                        continue
+                    fi
+
                     video_files+=("$item")
+                    echo "Schedule subtitle generation for: $item"
                 fi
             done
         fi
@@ -287,14 +305,6 @@ generate_subtitles() {
     local output_file="${file%.*}.$SUBTITLE_SUFFIX.srt"
     local language=$(get_audio_language_code "$file")
 
-    # Skip files without clear language.
-    if [ -z "$language" ] || [ "$language" == "null" ]; then
-        echo "Warn: Skipping. Failed to detect audio language of first audio track."
-        return
-    fi
-
-    echo "Language: $language"
-
     # Send the audio MKV file to Whisper and receive STR subtitles.
     execute_command "curl --no-progress-meter --request POST --header \"content-type: multipart/form-data\" --form \"audio_file=@$file\" \"http://${WHISPER_IP}:${WHISPER_PORT}/asr?task=translate&language=${language}&output=srt\" --output \"$output_file\""
 
@@ -314,7 +324,6 @@ generate_subtitles() {
 }
 
 # Start scanning from the provided directory.
-echo "Scanning directory $START_DIR"
 scan_directory "$START_DIR"
 
 # Generate subtitles for all collected videos and log progress.
