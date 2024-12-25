@@ -213,7 +213,8 @@ scan_directory() {
     cleanup_abandoned_srt "$dir"
 
     # Iterate over the items in the directory. Keeping the optional --days argument in mind.
-    IFS=$'\0' read -d '' -r -a items < <(find "$dir"/* -maxdepth 0 ${DAYS:+-mtime -$DAYS} -print0)
+    readarray -d '' items < <(find "$dir"/* -maxdepth 0 ${DAYS:+-mtime -$DAYS} -print0)
+
     for item in "${items[@]}"; do
         if [[ -d "$item" ]]; then
             # Exclude directories in the IGNORE_DIRS array.
@@ -234,7 +235,7 @@ scan_directory() {
                     # Check if subtitles were already generated for this video.
                     local subtitle_file="${item%.*}.$SUBTITLE_SUFFIX.srt"
                     if [[ -f "$subtitle_file" ]]; then
-                        echo "Skip. Generated subtitles in '$SUBTITLE_LANGUAGE' present."
+                        echo "Skip. Already generated."
                         continue
                     fi
 
