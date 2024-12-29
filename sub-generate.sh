@@ -23,7 +23,6 @@ show_help() {
     echo "                                Folders containing an .ignore file are also ignored."
     echo "  --subtitle-language, -sl LANG Target language for generated subtitles. (default: $SUBTITLE_LANGUAGE)"
     echo "                                Used to skip a video, if it already has embedded subtitles in that language."
-    echo "                                Needs to match the mediainfo language output."
     echo "  --check-audio, -ca            Skip video if it contains an audio track in the target subtitle language. (default: $CHECK_AUDIO)"
     echo "  --days DAYS                   Consider only files and directories that changes in the last x days. (default: no filter)"
     echo "  --generated-keyword, -gk WORD Keyword added to the file name of generated subtitle files. (default: $GENERATED_KEYWORD)"
@@ -171,8 +170,6 @@ contains_subtitle_language() {
 }
 
 # Returns language codes for all audio tracks of a file.
-# See: https://github.com/openai/whisper/blob/main/whisper/tokenizer.py
-# Returns an array of language codes.
 get_audio_languages() {
     local file=$1
     mediainfo --Output=JSON "$file" | jq -r '.media.track[]? | select(.["@type"] == "Audio") | .Language?'
@@ -251,10 +248,18 @@ scan_directory() {
                         continue
                     fi
 
-                    # Skip files without clear language, as the input language needs to be set to interact with Whisper.
+                    # Check language of audio can be detected.
                     local language=$(get_audio_language_code "$item")
                     if [ -z "$language" ] || [ $language == "null" ]; then
                         echo "Skip. Failed to detect audio language of first audio track."
+                        continue
+                    fi
+
+                    # Check language of audio is a language Whispar can handle.
+                    # See: https://github.com/openai/whisper/blob/main/whisper/tokenizer.py
+                    valid_languages=("af" "am" "ar" "as" "az" "ba" "be" "bg" "bn" "bo" "br" "bs" "ca" "cs" "cy" "da" "de" "el" "en" "es" "et" "eu" "fa" "fi" "fo" "fr" "gl" "gu" "ha" "haw" "he" "hi" "hr" "ht" "hu" "hy" "id" "is" "it" "ja" "jw" "ka" "kk" "km" "kn" "ko" "la" "lb" "ln" "lo" "lt" "lv" "mg" "mi" "mk" "ml" "mn" "mr" "ms" "mt" "my" "ne" "nl" "nn" "no" "oc" "pa" "pl" "ps" "pt" "ro" "ru" "sa" "sd" "si" "sk" "sl" "sn" "so" "sq" "sr" "su" "sv" "sw" "ta" "te" "tg" "th" "tk" "tl" "tr" "tt" "uk" "ur" "uz" "vi" "yi" "yo" "zh" "yue")
+                    if [[ ! " ${valid_languages[@]} " =~ " $language " ]]; then
+                        echo "Skip. Invalid language code: $language"
                         continue
                     fi
 
