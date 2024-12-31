@@ -229,10 +229,17 @@ scan_directory() {
                 if [[ "$item" == *.$format ]]; then
                     echo "Checking video $item"
 
-                    # Check if subtitles were already generated for this video.
+                    # Check if subtitles are already generated for this video.
                     local subtitle_file="${item%.*}.$SUBTITLE_SUFFIX.srt"
                     if [[ -f "$subtitle_file" ]]; then
                         echo "Skip. Already generated."
+                        continue
+                    fi
+
+                    # Check if non-generated external subtitles file is present.
+                    local external_subtitle_file="${item%.*}.$SUBTITLE_LANGUAGE.srt"
+                    if [[ -f "$external_subtitle_file" ]]; then
+                        echo "Skip. Already has non-generated external subtitle in '$SUBTITLE_LANGUAGE'."
                         continue
                     fi
 
