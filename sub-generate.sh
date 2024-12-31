@@ -312,7 +312,8 @@ generate_subtitles() {
     local language=$(get_audio_language_code "$file")
 
     # Send the audio MKV file to Whisper and receive STR subtitles.
-    execute_command "curl --no-progress-meter --request POST --header \"content-type: multipart/form-data\" --form \"audio_file=@$file\" \"http://${WHISPER_IP}:${WHISPER_PORT}/asr?task=translate&language=${language}&output=srt\" --output \"$output_file\""
+    # Audio file name quotes are critical to handle files with ; in the name.
+    execute_command "curl --no-progress-meter --request POST --header \"content-type: multipart/form-data\" --form 'audio_file=@\"$file\"' \"http://${WHISPER_IP}:${WHISPER_PORT}/asr?task=translate&language=${language}&output=srt\" --output \"$output_file\""
 
     # Skip file check on dry run, since no file was created.
     if [ "$DRY_RUN" = true ]; then
