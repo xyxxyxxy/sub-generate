@@ -114,7 +114,6 @@ execute_command() {
     if [ "$DRY_RUN" = true ]; then
         echo "    DRY_RUN $command"
     else
-        echo "    $command"
         # Run command and evaluate exit code.
         if ! eval "$command"; then
             any_error=1
