@@ -101,7 +101,7 @@ if [[ "$SUBTITLE_LANGUAGE" != "en" ]]; then
 fi
 
 # Suffix added to the end of the generated subtitle file name.
-SUBTITLE_SUFFIX="$SUBTITLE_LANGUAGE $GENERATED_KEYWORD"
+SUBTITLE_SUFFIX="English $GENERATED_KEYWORD"
 
 # Initialize an empty array to hold the video file paths.
 video_files=()
