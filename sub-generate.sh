@@ -301,7 +301,7 @@ check_output_file() {
     # Note: The generated file being empty is no error.
     #       The video might not conatin speach at all.
     #       The empty file will prevent the script from
-    #       repeatidly generating subtitles for that video.
+    #       repeatedly generating subtitles for that video.
 }
 
 # Returns language code for first audio track of file.
