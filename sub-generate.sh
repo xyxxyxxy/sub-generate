@@ -24,7 +24,7 @@ show_help() {
     echo "  --subtitle-language, -sl LANG Target language for generated subtitles. (default: $SUBTITLE_LANGUAGE)"
     echo "                                Used to skip a video, if it already has embedded subtitles in that language."
     echo "  --check-audio, -ca            Skip video if it contains an audio track in the target subtitle language. (default: $CHECK_AUDIO)"
-    echo "  --days DAYS                   Consider only files and directories that changes in the last x days. (default: no filter)"
+    echo "  --days DAYS                   Consider only files and directories created in the last x days. (default: no filter)"
     echo "  --generated-keyword, -gk WORD Keyword added to the file name of generated subtitle files. (default: $GENERATED_KEYWORD)"
     echo "  --dry-run                     Run without making any changes. (default: $DRY_RUN)"
     echo "  --help                        Display this help message and exit."
@@ -196,8 +196,6 @@ contains_audio_language() {
 scan_directory() {
     local dir="$1"
 
-    echo "Scanning directory $dir"
-
     # Check for .ignore file and skip if the file exists.
     # This is an Emby convention: https://emby.media/support/articles/Excluding-Files-Folders.html
     if [[ -f "$dir/.ignore" ]]; then
@@ -209,7 +207,11 @@ scan_directory() {
     cleanup_abandoned_srt "$dir"
 
     # Iterate over the items in the directory. Keeping the optional --days argument in mind.
-    readarray -d '' items < <(find "$dir"/* -maxdepth 0 ${DAYS:+-mtime -$DAYS} -print0)
+    #
+    # Using creation time instead of last modified,
+    # because modified is set to original creation date
+    # and created to the date of the machine downloading it.
+    readarray -d '' items < <(find "$dir"/* -maxdepth 0 ${DAYS:+-newermt "$DAYS days ago"} -print0)
 
     for item in "${items[@]}"; do
         if [[ -d "$item" ]]; then
@@ -342,6 +344,7 @@ generate_subtitles() {
 }
 
 # Start scanning from the provided directory.
+echo "Scanning $dir recursively..."
 scan_directory "$START_DIR"
 
 # Generate subtitles for all collected videos and log progress.
